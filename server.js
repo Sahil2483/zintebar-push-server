@@ -11,6 +11,11 @@ admin.initializeApp({
 
 const db = admin.database();
 
+function normalizePhone(phone) {
+  if (!phone) return phone;
+  return phone.replace(/^\+91/, '').replace(/\s/g, '');
+}
+
 console.log('[ZinteBar Push Server] Started — listening for pushQueue...');
 
 db.ref('pushQueue').on('child_added', async (snap) => {
@@ -23,14 +28,15 @@ db.ref('pushQueue').on('child_added', async (snap) => {
     return;
   }
 
-  console.log(`[Push] New job: ${jobKey} → phone: ${job.targetPhone}`);
+  const phone = normalizePhone(job.targetPhone);
+  console.log(`[Push] New job: ${jobKey} → phone: ${phone}`);
 
   try {
-    const tokenSnap = await db.ref('fcmTokens/' + job.targetPhone).once('value');
+    const tokenSnap = await db.ref('fcmTokens/' + phone).once('value');
     const tokenData = tokenSnap.val();
 
     if (!tokenData || !tokenData.token) {
-      console.warn('[Push] No FCM token for phone:', job.targetPhone);
+      console.warn('[Push] No FCM token for phone:', phone);
       snap.ref.remove();
       return;
     }
@@ -50,7 +56,7 @@ db.ref('pushQueue').on('child_added', async (snap) => {
     };
 
     const response = await admin.messaging().send(message);
-    console.log(`[Push] ✅ Sent to ${job.targetPhone} — FCM ID: ${response}`);
+    console.log(`[Push] ✅ Sent to ${phone} — FCM ID: ${response}`);
     snap.ref.remove();
 
   } catch (err) {
@@ -66,10 +72,16 @@ db.ref('orders').on('child_added', async (snap) => {
   const age = Date.now() - (order.createdAt || 0);
   if (age > 30000) return;
 
+  const phone = normalizePhone(order.servicePhone);
+  console.log(`[Push] New order for provider: ${phone}`);
+
   try {
-    const tokenSnap = await db.ref('fcmTokens/' + order.servicePhone).once('value');
+    const tokenSnap = await db.ref('fcmTokens/' + phone).once('value');
     const tokenData = tokenSnap.val();
-    if (!tokenData || !tokenData.token) return;
+    if (!tokenData || !tokenData.token) {
+      console.warn('[Push] No FCM token for phone:', phone);
+      return;
+    }
 
     const customerName = order.customerName || 'Customer';
     const serviceName = order.serviceName || order.section || 'Service';
@@ -92,7 +104,7 @@ db.ref('orders').on('child_added', async (snap) => {
     };
 
     const response = await admin.messaging().send(message);
-    console.log(`[Push] ✅ Provider notified: ${order.servicePhone} — ${response}`);
+    console.log(`[Push] ✅ Provider notified: ${phone} — ${response}`);
 
   } catch (err) {
     console.error('[Push] ❌ Provider notify error:', err.message);
