@@ -13,7 +13,7 @@ const db = admin.database();
 
 function normalizePhone(phone) {
   if (!phone) return phone;
-  return phone.replace(/^\+91/, '').replace(/\s/g, '');
+  return phone.replace(/^\+?91/, '').replace(/\s/g, '');
 }
 
 console.log('[ZinteBar Push Server] Started — listening for pushQueue...');
